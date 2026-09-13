@@ -162,6 +162,11 @@ test('static sites preserve subpaths and support byte ranges', async (Context) =
   const WorkspacePage = await GetResponse(Port, '/workspace/portfolio', AdminHeaders);
   assert.equal(WorkspacePage.Status, 200);
   assert.match(WorkspacePage.Body.toString('utf8'), /id="WorkspaceApp"/);
+  assert.match(WorkspacePage.Body.toString('utf8'), /\/assets\/Admin\.js\?v=[a-z0-9.]+/);
+
+  const AdminScript = await GetResponse(Port, '/assets/Admin.js', AdminHeaders);
+  assert.equal(AdminScript.Status, 200);
+  assert.equal(AdminScript.Headers['cache-control'], 'no-store, max-age=0');
 
   const FilesApi = await GetResponse(Port, '/api/workspaces/portfolio/files', AdminHeaders);
   assert.equal(FilesApi.Status, 200);

@@ -219,7 +219,7 @@ function IsInside(RootPath, CandidatePath) {
   return CandidatePath === RootPath || CandidatePath.startsWith(`${RootPath}${sep}`);
 }
 
-function SendFile(Request, Response, FilePath) {
+function SendFile(Request, Response, FilePath, ExtraHeaders = {}) {
   let FileStats;
   try {
     FileStats = statSync(FilePath);
@@ -236,6 +236,7 @@ function SendFile(Request, Response, FilePath) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Content-Security-Policy': `frame-ancestors 'self' https://${Config.AdminHost}`,
+    ...ExtraHeaders,
   };
   let Start = 0;
   let End = FileStats.size - 1;
@@ -318,11 +319,15 @@ function GetOAuthConfigurationError() {
 }
 
 function RenderLayout(Title, Content) {
+  const AssetVersion = Math.max(
+    statSync(resolve(Config.AdminAssetsPath, 'Admin.css')).mtimeMs,
+    statSync(resolve(Config.AdminAssetsPath, 'Admin.js')).mtimeMs,
+  ).toString(36);
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${EscapeHtml(Title)} · ${EscapeHtml(Config.AppName)}</title><link rel="stylesheet" href="/assets/Admin.css"><style>
+<title>${EscapeHtml(Title)} · ${EscapeHtml(Config.AppName)}</title><link rel="stylesheet" href="/assets/Admin.css?v=${AssetVersion}"><style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#090b10;color:#f4f7f6}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 12% 0,rgba(46,190,145,.13),transparent 32rem),#090b10}main{width:min(1100px,92vw);margin:0 auto;padding:3rem 0 5rem}header{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:2.5rem}.brand{font-weight:800;letter-spacing:-.04em;font-size:1.35rem}.muted{color:#899790}h1{font-size:clamp(2rem,5vw,3.6rem);letter-spacing:-.055em;margin:.2rem 0 1rem}p{line-height:1.6}a{color:#75e5bd}button,.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #397a64;border-radius:.65rem;padding:.7rem 1rem;background:#13271f;color:#eafff7;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}button:hover,.button:hover{background:#18372b}.secondary{border-color:#303a36;background:#151a18}.danger{border-color:#7d3e48;background:#2a1519}.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:1.2rem}.card{border:1px solid #222b27;border-radius:1rem;background:rgba(16,20,19,.88);padding:1.3rem}.endpoint{display:flex;justify-content:space-between;gap:1rem;padding:1rem 0;border-bottom:1px solid #222b27}.endpoint:last-child{border:0}.slug{font-weight:800;font-size:1.08rem}.tag{display:inline-block;padding:.2rem .5rem;border-radius:999px;background:#18251f;color:#91d9bd;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}label{display:block;color:#aebbb5;font-size:.88rem;font-weight:700;margin:1rem 0 .45rem}input,select,textarea{width:100%;border:1px solid #303a36;border-radius:.6rem;background:#0c100f;color:#f4f7f6;padding:.75rem;font:inherit}textarea{min-height:240px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.88rem;line-height:1.5;resize:vertical}.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1rem}.notice{padding:.85rem 1rem;border:1px solid #66562d;border-radius:.65rem;background:#241f12;color:#f3dda0}.empty{padding:2.2rem 0;color:#74817b}.check{display:flex;align-items:center;gap:.6rem}.check input{width:auto}@media(max-width:800px){main{padding-top:1.5rem}.grid{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
-</style></head><body><main>${Content}</main><script src="/assets/Admin.js" defer></script></body></html>`;
+</style></head><body><main>${Content}</main><script src="/assets/Admin.js?v=${AssetVersion}" defer></script></body></html>`;
 }
 
 function RenderAdmin(Session, Message = '', SelectedSlug = '') {
@@ -464,8 +469,8 @@ async function HandleWorkspaceApi(Request, Response, Url, Session) {
 
 async function HandleAdmin(Request, Response, Url) {
   if (Url.pathname === '/healthz') return Send(Response, 200, 'ok');
-  if (Request.method === 'GET' && Url.pathname === '/assets/Admin.css') return SendFile(Request, Response, resolve(Config.AdminAssetsPath, 'Admin.css'));
-  if (Request.method === 'GET' && Url.pathname === '/assets/Admin.js') return SendFile(Request, Response, resolve(Config.AdminAssetsPath, 'Admin.js'));
+  if (Request.method === 'GET' && Url.pathname === '/assets/Admin.css') return SendFile(Request, Response, resolve(Config.AdminAssetsPath, 'Admin.css'), { 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' });
+  if (Request.method === 'GET' && Url.pathname === '/assets/Admin.js') return SendFile(Request, Response, resolve(Config.AdminAssetsPath, 'Admin.js'), { 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' });
   if (Url.pathname === '/oauth/login') return HandleOAuthStart(Response);
   if (Url.pathname === '/oauth/callback') return HandleOAuthCallback(Request, Response, Url);
   if (Url.pathname === '/logout') return Redirect(Response, '/', 302, { 'Set-Cookie': 'QckSession=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0' });

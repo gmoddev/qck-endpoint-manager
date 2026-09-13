@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t endpoint-workspace-manager:test .
+      - name: Start hardened container
+        run: |
+          docker volume create endpoint-manager-test-data
+          docker volume create endpoint-manager-test-sites
+          docker run -d --name endpoint-manager-test \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            -v endpoint-manager-test-data:/app/data \
+            -v endpoint-manager-test-sites:/app/sites \
+            -p 127.0.0.1:3000:3000 \
+            -e NODE_ENV=production \
+            -e APP_NAME="Endpoint Manager Test" \
+            -e PUBLIC_HOST=links.example.org \
+            -e ADMIN_HOST=manage.example.org \
+            -e SESSION_SECRET=a-ci-only-session-secret-longer-than-thirty-two-characters \
+            -e OAUTH_PROVIDER_NAME=Discord \
+            -e OAUTH_AUTHORIZE_URL=https://discord.com/oauth2/authorize \
+            -e OAUTH_TOKEN_URL=https://discord.com/api/oauth2/token \
+            -e OAUTH_USERINFO_URL=https://discord.com/api/users/@me \
+            -e OAUTH_CLIENT_ID=123 \
+            -e OAUTH_CLIENT_SECRET=ci-only-secret \
+            -e OAUTH_AUTHORIZED_USER_ID=456 \
+            endpoint-workspace-manager:test
+      - name: Verify health
+        run: |
+          for Attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:3000/healthz; then exit 0; fi
+            sleep 1
+          done
+          docker logs endpoint-manager-test
+          exit 1
+      - name: Clean up
+        if: always()
+        run: |
+          docker rm -f endpoint-manager-test || true
+          docker volume rm endpoint-manager-test-data endpoint-manager-test-sites || true

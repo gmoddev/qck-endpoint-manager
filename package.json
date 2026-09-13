@@ -1,0 +1,16 @@
+{
+  "name": "endpoint-workspace-manager",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/Setup.js",
+    "validate": "node scripts/ValidateConfig.js",
+    "start": "node src/Server.js",
+    "register-site": "node scripts/RegisterStaticSites.js",
+    "test": "node --test"
+  }
+}
